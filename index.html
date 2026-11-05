@@ -28,7 +28,7 @@ button.b{padding:11px 14px;border:0;border-radius:8px;background:#2b6a8a;color:#
 button.g{background:#e3e8ee;color:#222}button.r{background:#c0392b}
 .banner{background:#fff3cd;border:1px solid #f0d27a;border-radius:10px;padding:10px;margin-bottom:12px;font-size:14px}
 .t{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #eee}
-canvas{border:1px dashed #888;border-radius:8px;background:#fff;touch-action:none;width:100%;height:110px}
+canvas{border:1px dashed #888;border-radius:8px;background:#fff;touch-action:none;width:100%;height:150px}
 .pw{overflow:hidden}
 #doc{width:794px;background:#fff;padding:36px 30px;font:14px Helvetica,Arial,sans-serif;color:#000;transform-origin:top left}
 #doc table{width:100%;border-collapse:collapse;margin-bottom:22px}
@@ -75,14 +75,17 @@ canvas{border:1px dashed #888;border-radius:8px;background:#fff;touch-action:non
 
 <section id="p">
  <div class="card">
-  <label>Bailleur 1 (ex. Mr Prénom NOM)</label><input id="o_n1">
-  <label>Bailleur 2 (ex. Mme Prénom NOM)</label><input id="o_n2">
+  <label>Bailleur 1</label>
+  <div class="row"><select id="o_c1" style="flex:0 0 80px"><option>Mr</option><option>Mme</option></select><input id="o_p1" placeholder="Prénom"><input id="o_nom1" placeholder="Nom"></div>
+  <label>Bailleur 2</label>
+  <div class="row"><select id="o_c2" style="flex:0 0 80px"><option>Mme</option><option>Mr</option></select><input id="o_p2" placeholder="Prénom"><input id="o_nom2" placeholder="Nom"></div>
+  <label style="display:flex;align-items:center;gap:8px;margin-top:12px"><input type="checkbox" id="o_marie" style="width:auto"> Nous sommes mariés (affiche « Mr et Mme Prénom Nom » avec le prénom et le nom du bailleur 1)</label>
   <label>Adresse</label><input id="o_adr">
   <div class="row"><div><label>Code postal</label><input id="o_cp"></div><div><label>Commune</label><input id="o_ville"></div></div>
   <label>« Fait à » (commune)</label><input id="o_fait">
   <label>IBAN</label><input id="o_iban"><label>BIC</label><input id="o_bic">
-  <label>Signature bailleur 1</label><canvas id="s1"></canvas><button class="b g" data-c="s1">Effacer</button>
-  <label>Signature bailleur 2</label><canvas id="s2"></canvas><button class="b g" data-c="s2">Effacer</button>
+  <div class="row" style="margin-top:6px"><div><label>Signature bailleur 1</label><canvas id="s1"></canvas><button class="b g" data-c="s1">Effacer</button></div>
+  <div><label>Signature bailleur 2</label><canvas id="s2"></canvas><button class="b g" data-c="s2">Effacer</button></div></div>
   <br><button class="b" id="o_save">Enregistrer</button>
  </div>
  <div class="card"><b>Sauvegarde</b>
@@ -133,21 +136,24 @@ $('f_save').onclick=()=>{const t={};F.forEach(f=>t[f]=$('f_'+f).value.trim());
 $('f_del').onclick=()=>{if(confirm('Supprimer définitivement ce locataire ?')){db.tenants=db.tenants.filter(x=>x.id!==$('f_id').value);save();$('form').style.display='none';listT()}};
 
 /* profil bailleurs */
-const O=['n1','n2','adr','cp','ville','fait','iban','bic'];
+const O=['c1','p1','nom1','c2','p2','nom2','adr','cp','ville','fait','iban','bic'];
 const pads={};
 function pad(id){const c=$(id),x=c.getContext('2d');
  const r=()=>{const w=c.clientWidth,h=c.clientHeight;if(c.width!==w){c.width=w;c.height=h}x.lineWidth=2.5;x.lineCap='round';x.strokeStyle='#000'};
  let dr=false;const pos=e=>{const b=c.getBoundingClientRect();return[e.clientX-b.left,e.clientY-b.top]};
  c.onpointerdown=e=>{r();dr=true;c.setPointerCapture(e.pointerId);x.beginPath();x.moveTo(...pos(e))};
  c.onpointermove=e=>{if(dr){x.lineTo(...pos(e));x.stroke()}};
- c.onpointerup=()=>{dr=false};
- pads[id]={c,x,r,clear(){r();x.clearRect(0,0,c.width,c.height)}}}
+ c.onpointerup=()=>{dr=false;pads[id].dirty=true};
+ pads[id]={c,x,r,dirty:false,clear(){r();x.clearRect(0,0,c.width,c.height);this.dirty=true}}}
 function loadOwner(){O.forEach(f=>$('o_'+f).value=db.owner[f]||'');
- ['s1','s2'].forEach(id=>{const p=pads[id];p.r();p.x.clearRect(0,0,p.c.width,p.c.height);
-  const s=db.owner['sig'+id[1]];if(s){const i=new Image();i.onload=()=>p.x.drawImage(i,0,0,p.c.width,p.c.height);i.src=s}})}
-const blank=c=>!c.getContext('2d').getImageData(0,0,c.width,c.height).data.some((v,i)=>i%4===3&&v);
-$('o_save').onclick=()=>{O.forEach(f=>db.owner[f]=$('o_'+f).value.trim());
- ['s1','s2'].forEach(id=>{const c=pads[id].c;db.owner['sig'+id[1]]=blank(c)?'':c.toDataURL('image/png')});
+ if(!$('o_c1').value)$('o_c1').value='Mr';if(!$('o_c2').value)$('o_c2').value='Mme';$('o_marie').checked=!!db.owner.marie;
+ ['s1','s2'].forEach(id=>{const p=pads[id];p.r();p.x.clearRect(0,0,p.c.width,p.c.height);p.dirty=false;
+  const s=db.owner['sig'+id[1]];if(s){const i=new Image();i.onload=()=>{const k=Math.min(p.c.width/i.width,p.c.height/i.height,1);p.x.drawImage(i,0,0,i.width*k,i.height*k)};i.src=s}})}
+function crop(c){const x=c.getContext('2d'),w=c.width,h=c.height,d=x.getImageData(0,0,w,h).data;let a=w,b=h,e=-1,f=-1;
+ for(let j=0;j<h;j++)for(let i=0;i<w;i++)if(d[(j*w+i)*4+3]){if(i<a)a=i;if(i>e)e=i;if(j<b)b=j;if(j>f)f=j}
+ if(e<0)return'';const t=document.createElement('canvas');t.width=e-a+1;t.height=f-b+1;t.getContext('2d').drawImage(c,a,b,t.width,t.height,0,0,t.width,t.height);return t.toDataURL('image/png')}
+$('o_save').onclick=()=>{O.forEach(f=>db.owner[f]=$('o_'+f).value.trim());db.owner.marie=$('o_marie').checked;
+ ['s1','s2'].forEach(id=>{if(pads[id].dirty)db.owner['sig'+id[1]]=crop(pads[id].c);pads[id].dirty=false});
  save();alert('Profil enregistré.')};
 document.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>pads[b.dataset.c].clear());
 
@@ -159,21 +165,27 @@ function defaults(){const n=new Date(),a=$('dk').value==='a';
  $('dn').value=`${m.getFullYear()}-${p2(m.getMonth()+1)}`;$('dp').value='';render()}
 
 /* document */
+function ownerName(o){
+ if(o.p1||o.nom1||o.p2||o.nom2){
+  const c1=o.c1||'Mr',c2=o.c2||'Mme',n1=[o.p1,o.nom1].filter(Boolean).join(' '),n2=[o.p2,o.nom2].filter(Boolean).join(' ');
+  if(o.marie)return `${c1} et ${c2} ${n1}`;
+  return [n1?c1+' '+n1:'',n2?c2+' '+n2:''].filter(Boolean).join(' et ')}
+ return [o.n1,o.n2].filter(Boolean).join(' et ')}
 function render(){
  const t=db.tenants.find(x=>x.id===$('dt').value),o=db.owner,a=$('dk').value==='a';
  $('pay').style.display=a?'none':'block';
  if(!t){$('doc').innerHTML='<p style="padding:30px">Crée d\'abord un locataire (onglet Locataires).</p>';fit();return}
  const[y,mo]=($('dm').value||iso(new Date()).slice(0,7)).split('-').map(Number);
  const d1=new Date(y,mo-1,1),d2=new Date(y,mo,0),ech=new Date(y,mo-1,5);
- const L=num(t.loyer),C=num(t.charges),sig=['sig1','sig2'].map(k=>o[k]?`<img src="${o[k]}" style="height:55px;margin-right:12px">`:'').join('');
- const head=`<div class="box" style="width:62%;margin-bottom:26px">${E(o.n1)}${o.n2?' et '+E(o.n2):''}<br>${E(o.adr)}<br>${E(o.cp)} ${E(o.ville)}</div>
+ const L=num(t.loyer),C=num(t.charges),sig=['sig1','sig2'].map(k=>o[k]?`<img src="${o[k]}" style="max-height:60px;max-width:200px;width:auto">`:'').join('');
+ const head=`<div class="box" style="width:62%;margin-bottom:26px">${E(ownerName(o))}<br>${E(o.adr)}<br>${E(o.cp)} ${E(o.ville)}</div>
  <div class="box" style="width:42%;margin:0 0 26px auto"><div style="text-align:center">Locataire Destinataire</div><br>${E(t.civ)} ${E(t.nom)} ${E(t.prenom)}<br>${E(t.adr)}<br>${E(t.cp)} ${E(t.ville)}<br>Date de signature du bail : ${fi(t.bail)}</div>
  <div class="box" style="margin-bottom:26px;text-align:center"><b>${a?"Avis d’échéance de loyer":"Quittance de loyer"}<br>Période concernée : Du ${fd(d1)} au ${fd(d2)}${a?`<br>Date d’échéance : ${fd(ech)}`:''}</b><div class="ra" style="margin-top:14px"><b>${a?"Avis d’échéance":"Quittance"} n° ${E($('dn').value)}</b></div></div>
  <table><tr><td class="bl" style="width:50%;text-align:center">Libellé</td><td class="bl" style="text-align:center">Montant (€)</td></tr>
  <tr><td style="height:150px"><div>- Loyer hors charges</div><br><div>- Charges</div></td><td class="lb ra"><div>${eur(L)}</div><br><div>${eur(C)}</div></td></tr>
  <tr><td class="bl">${a?'Total à payer':'Total payé'}</td><td class="lb ra">${eur(L+C)}</td></tr></table>`;
  const foot=`<table><tr><td style="width:50%">Fait à :</td><td>${E(o.fait||o.ville)}</td></tr><tr><td>Le :</td><td>${fi($('dl').value)}</td></tr>
- <tr><td colspan="2">Signature des bailleurs :&nbsp; ${sig}<div style="height:${sig?0:50}px"></div></td></tr></table>`;
+ <tr><td colspan="2" style="padding:0"><div style="display:flex;flex-direction:row;align-items:stretch;min-height:72px"><div style="width:190px;flex:0 0 190px;padding:6px 8px;border-right:1.5px solid #111">Signature des bailleurs :</div><div style="display:flex;flex-direction:row;flex-wrap:nowrap;align-items:center;gap:28px;padding:6px 16px">${sig}</div></div></td></tr></table>`;
  const mid=a?`<table><tr><td class="gy" style="width:50%">Modalités de paiement :</td><td>${E(t.mod)}</td></tr><tr><td class="gy" rowspan="2">Coordonnées bancaires :</td><td>IBAN : ${E(o.iban)}</td></tr><tr><td>BIC : ${E(o.bic)}</td></tr></table>
  <table><tr><td>Nous vous remercions de bien vouloir procéder au règlement du montant indiqué avant la date d’échéance</td></tr></table>`
  :`<table><tr><td colspan="2">Les bailleurs reconnaissent avoir reçu de la part du locataire la somme indiquée ci-dessus, au titre de paiement du loyer et des charges pour la période mentionnée.</td></tr>
