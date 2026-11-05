@@ -22,7 +22,8 @@ main{padding:12px;max-width:900px;margin:auto}
 section{display:none}section.on{display:block}
 .card{background:#fff;border-radius:10px;padding:12px;margin-bottom:12px;box-shadow:0 1px 3px #0001}
 label{display:block;font-size:13px;color:#555;margin:8px 0 3px}
-input,select{width:100%;padding:10px;border:1px solid #ccc;border-radius:8px;font-size:16px}
+input,select,textarea{width:100%;padding:10px;border:1px solid #ccc;border-radius:8px;font-size:16px}
+textarea{font-family:inherit;resize:vertical}
 .row{display:flex;gap:8px}.row>*{flex:1}
 button.b{padding:11px 14px;border:0;border-radius:8px;background:#2b6a8a;color:#fff;font-size:15px;margin:8px 6px 0 0}
 button.g{background:#e3e8ee;color:#222}button.r{background:#c0392b}
@@ -31,8 +32,8 @@ button.g{background:#e3e8ee;color:#222}button.r{background:#c0392b}
 canvas{border:1px dashed #888;border-radius:8px;background:#fff;touch-action:none;width:100%;height:150px}
 .pw{overflow:hidden}
 #doc{width:794px;background:#fff;padding:36px 30px;font:14px Helvetica,Arial,sans-serif;color:#000;transform-origin:top left}
-#doc table{width:100%;border-collapse:collapse;margin-bottom:22px}
-#doc td{border:1.5px solid #111;padding:6px 8px;vertical-align:top}
+#doc table{width:100%;border-collapse:separate;border-spacing:0;border-top:1.5px solid #111;border-left:1.5px solid #111;margin-bottom:22px}
+#doc td{border:0;border-right:1.5px solid #111;border-bottom:1.5px solid #111;padding:6px 8px;vertical-align:top}
 #doc .box{border:1.5px solid #111;padding:8px 10px;display:block}
 #doc .bl{background:#9fcce0}#doc .lb{background:#d9ecf4}#doc .gy{background:#f1f1f1}
 #doc .ra{text-align:right}
@@ -53,7 +54,7 @@ canvas{border:1px dashed #888;border-radius:8px;background:#fff;touch-action:non
   <div><label>N°</label><input id="dn"></div></div>
   <div id="pay"><label>Date de paiement (quittance)</label><input type="date" id="dp"></div>
   <p style="font-size:12px;color:#666;margin:8px 0 0">Aperçu modifiable : touche le texte du document pour corriger à la main.</p>
-  <button class="b" id="pdf">📄 Exporter en PDF</button>
+  <button class="b" id="pdf">📄 Exporter en PDF</button><button class="b g" id="mail">✉️ Mail prérempli</button><button class="b g" id="share">📤 Partager le PDF</button>
  </div>
  <div class="pw" id="pw"><div id="doc" contenteditable="true"></div></div>
 </section>
@@ -67,6 +68,7 @@ canvas{border:1px dashed #888;border-radius:8px;background:#fff;touch-action:non
   <label>Adresse du logement loué</label><input id="f_adr">
   <div class="row"><div><label>Code postal</label><input id="f_cp" inputmode="numeric"></div><div><label>Commune</label><input id="f_ville"></div></div>
   <label>Date de signature du bail</label><input type="date" id="f_bail">
+  <label>Adresse email du locataire</label><input type="email" id="f_mail" inputmode="email">
   <div class="row"><div><label>Loyer hors charges (€)</label><input id="f_loyer" inputmode="decimal"></div><div><label>Charges (€)</label><input id="f_charges" inputmode="decimal"></div></div>
   <label>Modalités de paiement</label><input id="f_mod" placeholder="Virement">
   <button class="b" id="f_save">Enregistrer</button><button class="b g" id="f_cancel">Annuler</button><button class="b r" id="f_del">Supprimer</button>
@@ -84,6 +86,10 @@ canvas{border:1px dashed #888;border-radius:8px;background:#fff;touch-action:non
   <div class="row"><div><label>Code postal</label><input id="o_cp"></div><div><label>Commune</label><input id="o_ville"></div></div>
   <label>« Fait à » (commune)</label><input id="o_fait">
   <label>IBAN</label><input id="o_iban"><label>BIC</label><input id="o_bic">
+  <label>Votre adresse email (reçoit une copie des mails)</label><input type="email" id="o_mail" inputmode="email">
+  <label>Message type : avis d'échéance</label><textarea id="o_msgA" rows="6"></textarea>
+  <label>Message type : quittance</label><textarea id="o_msgQ" rows="6"></textarea>
+  <p style="font-size:12px;color:#666;margin:6px 0 0">Écris {mois}, {logement} et {bailleurs} : ils sont remplacés automatiquement.</p>
   <div class="row" style="margin-top:6px"><div><label>Signature bailleur 1</label><canvas id="s1"></canvas><button class="b g" data-c="s1">Effacer</button></div>
   <div><label>Signature bailleur 2</label><canvas id="s2"></canvas><button class="b g" data-c="s2">Effacer</button></div></div>
   <br><button class="b" id="o_save">Enregistrer</button>
@@ -99,6 +105,7 @@ canvas{border:1px dashed #888;border-radius:8px;background:#fff;touch-action:non
 <script>
 const $=id=>document.getElementById(id);
 const K='locataires-v1';
+let pending=null;const LAB='📤 Partager le PDF';
 let db={owner:{},tenants:[]};
 try{db=JSON.parse(localStorage.getItem(K))||db}catch(e){}
 const save=()=>{try{localStorage.setItem(K,JSON.stringify(db))}catch(e){alert("Impossible d'enregistrer sur cet appareil.")}};
@@ -122,7 +129,7 @@ function banner(){const d=new Date().getDate();let h='';
 function go(k){$('dk').value=k;defaults();tab('d')}
 
 /* locataires */
-const F=['id','civ','nom','prenom','adr','cp','ville','bail','loyer','charges','mod'];
+const F=['id','civ','nom','prenom','adr','cp','ville','bail','mail','loyer','charges','mod'];
 function listT(){$('list').innerHTML=db.tenants.map(t=>`<div class="t"><span>${E(t.civ)} ${E(t.nom)} ${E(t.prenom)}<br><small style="color:#666">${E(t.adr)}</small></span><button class="b g" style="margin:0" onclick="editT('${t.id}')">Modifier</button></div>`).join('')||'<p style="color:#666">Aucun locataire pour le moment.</p>';
  $('dt').innerHTML=db.tenants.map(t=>`<option value="${t.id}">${E(t.nom)} ${E(t.prenom)}</option>`).join('')}
 function editT(id){const t=db.tenants.find(x=>x.id===id)||{civ:'Mr',mod:'Virement'};
@@ -136,7 +143,9 @@ $('f_save').onclick=()=>{const t={};F.forEach(f=>t[f]=$('f_'+f).value.trim());
 $('f_del').onclick=()=>{if(confirm('Supprimer définitivement ce locataire ?')){db.tenants=db.tenants.filter(x=>x.id!==$('f_id').value);save();$('form').style.display='none';listT()}};
 
 /* profil bailleurs */
-const O=['c1','p1','nom1','c2','p2','nom2','adr','cp','ville','fait','iban','bic'];
+const DEF_A="Bonjour,\n\nVeuillez trouver ci-joint l'avis d'échéance du mois de {mois} pour le logement situé au {logement}.\n\nCordialement,\n{bailleurs}";
+const DEF_Q="Bonjour,\n\nVeuillez trouver ci-joint la quittance de loyer du mois de {mois} pour le logement situé au {logement}.\n\nCordialement,\n{bailleurs}";
+const O=['c1','p1','nom1','c2','p2','nom2','adr','cp','ville','fait','iban','bic','mail','msgA','msgQ'];
 const pads={};
 function pad(id){const c=$(id),x=c.getContext('2d');
  const r=()=>{const w=c.clientWidth,h=c.clientHeight;if(c.width!==w){c.width=w;c.height=h}x.lineWidth=2.5;x.lineCap='round';x.strokeStyle='#000'};
@@ -146,7 +155,7 @@ function pad(id){const c=$(id),x=c.getContext('2d');
  c.onpointerup=()=>{dr=false;pads[id].dirty=true};
  pads[id]={c,x,r,dirty:false,clear(){r();x.clearRect(0,0,c.width,c.height);this.dirty=true}}}
 function loadOwner(){O.forEach(f=>$('o_'+f).value=db.owner[f]||'');
- if(!$('o_c1').value)$('o_c1').value='Mr';if(!$('o_c2').value)$('o_c2').value='Mme';$('o_marie').checked=!!db.owner.marie;
+ if(!$('o_msgA').value)$('o_msgA').value=DEF_A;if(!$('o_msgQ').value)$('o_msgQ').value=DEF_Q;if(!$('o_c1').value)$('o_c1').value='Mr';if(!$('o_c2').value)$('o_c2').value='Mme';$('o_marie').checked=!!db.owner.marie;
  ['s1','s2'].forEach(id=>{const p=pads[id];p.r();p.x.clearRect(0,0,p.c.width,p.c.height);p.dirty=false;
   const s=db.owner['sig'+id[1]];if(s){const i=new Image();i.onload=()=>{const k=Math.min(p.c.width/i.width,p.c.height/i.height,1);p.x.drawImage(i,0,0,i.width*k,i.height*k)};i.src=s}})}
 function crop(c){const x=c.getContext('2d'),w=c.width,h=c.height,d=x.getImageData(0,0,w,h).data;let a=w,b=h,e=-1,f=-1;
@@ -171,7 +180,7 @@ function ownerName(o){
   if(o.marie)return `${c1} et ${c2} ${n1}`;
   return [n1?c1+' '+n1:'',n2?c2+' '+n2:''].filter(Boolean).join(' et ')}
  return [o.n1,o.n2].filter(Boolean).join(' et ')}
-function render(){
+function render(){pending=null;$('share').textContent=LAB;
  const t=db.tenants.find(x=>x.id===$('dt').value),o=db.owner,a=$('dk').value==='a';
  $('pay').style.display=a?'none':'block';
  if(!t){$('doc').innerHTML='<p style="padding:30px">Crée d\'abord un locataire (onglet Locataires).</p>';fit();return}
@@ -201,7 +210,31 @@ $('pdf').onclick=()=>{const d=$('doc'),t=db.tenants.find(x=>x.id===$('dt').value
  const name=`${$('dk').value==='a'?'Avis_echeance':'Quittance'}_${(t.nom||'').replace(/\W+/g,'_')}_${$('dm').value}.pdf`;
  if(!window.html2pdf){window.print();return}
  const old=d.style.transform;d.style.transform='none';
- html2pdf().set({margin:0,filename:name,image:{type:'jpeg',quality:.98},html2canvas:{scale:2},jsPDF:{unit:'px',format:[794,1123],hotfix:['px_scaling']}}).from(d).save().then(()=>{d.style.transform=old})};
+ html2pdf().set(pdfOpt(name)).from(d).save().then(()=>{d.style.transform=old})};
+
+/* mail et partage */
+const MOIS=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+const pdfOpt=name=>({margin:0,filename:name,image:{type:'jpeg',quality:.98},html2canvas:{scale:2},jsPDF:{unit:'px',format:[794,1123],hotfix:['px_scaling']}});
+function mailData(){const t=db.tenants.find(x=>x.id===$('dt').value);if(!t){alert("Choisis d'abord un locataire.");return null}
+ const o=db.owner,a=$('dk').value==='a',[y,m]=($('dm').value||iso(new Date()).slice(0,7)).split('-').map(Number);
+ const mois=MOIS[m-1]+' '+y,log=[t.adr,[t.cp,t.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+ const body=((a?o.msgA:o.msgQ)||(a?DEF_A:DEF_Q)).replace(/\{mois\}/g,()=>mois).replace(/\{logement\}/g,()=>log).replace(/\{bailleurs\}/g,()=>ownerName(o));
+ return{to:(t.mail||'').trim(),cc:(o.mail||'').trim(),subject:(a?"Avis d'échéance":"Quittance de loyer")+' - '+mois,body,
+  name:`${a?'Avis_echeance':'Quittance'}_${(t.nom||'').replace(/\W+/g,'_')}_${$('dm').value}.pdf`}}
+$('mail').onclick=()=>{const m=mailData();if(!m)return;
+ location.href='mailto:'+m.to+'?'+(m.cc?'cc='+m.cc+'&':'')+'subject='+encodeURIComponent(m.subject)+'&body='+encodeURIComponent(m.body)};
+async function pdfBlob(name){const d=$('doc'),old=d.style.transform;d.style.transform='none';
+ try{return await html2pdf().set(pdfOpt(name)).from(d).outputPdf('blob')}finally{d.style.transform=old}}
+$('share').onclick=async()=>{const m=mailData();if(!m)return;
+ if(!window.html2pdf){alert("L'export PDF a besoin d'internet la première fois.");return}
+ try{
+  if(!pending)pending={file:new File([await pdfBlob(m.name)],m.name,{type:'application/pdf'})};
+  if(!navigator.canShare||!navigator.canShare({files:[pending.file]})){alert("Le partage de fichier n'est pas disponible ici. Utilise « Exporter en PDF » puis « Mail prérempli ».");return}
+  await navigator.share({files:[pending.file],title:m.subject,text:m.body});
+ }catch(e){
+  if(e&&e.name==='NotAllowedError')$('share').textContent='✅ PDF prêt : touche pour partager';
+  else if(e&&e.name!=='AbortError')alert('Partage impossible : '+(e.message||e))}};
+$('doc').addEventListener('input',()=>{pending=null});
 
 /* sauvegarde */
 $('exp').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(db)],{type:'application/json'}));a.download='sauvegarde-locataires.json';a.click()};
